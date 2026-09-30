@@ -92,6 +92,8 @@ Whenever inspecting, adding, or modifying Telegram interactions:
    - Always debounce album ingestion with an async timer (`_send_debounced_batch_summary`) so the user receives a single consolidated batch card rather than multiple message spams.
 5. **Smart Message Pairing**:
    - Support auto-adoption: subsequent text notes sent after an uncaptioned photo should pair automatically, or support photo reply targeting.
+6. **Repository-Isolated Bot Alerting & Zero Cross-Bot Pollution**:
+   - Notifications, alerts, reviews, and GitHub activity updates must strictly route through that specific repository's designated bot. Never alert project A events through project B's bot.
 
 ---
 
