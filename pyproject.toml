@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "telegram-ai-issue-bot-template"
+version = "1.0.0"
+description = "Production-grade Clean Architecture template for Telegram AI Issue Bots with GitHub CLI integration, media album debouncing, and automated QA triage."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Open Source Contributors", email = "contributors@example.com"}
+]
+dependencies = [
+    "python-telegram-bot[rate-limiter]>=20.7",
+    "python-dotenv>=1.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
