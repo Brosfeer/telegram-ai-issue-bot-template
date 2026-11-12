@@ -105,10 +105,22 @@ class Database:
             logger.info("Database initialized successfully with access control tables.")
 
     @classmethod
-    def get_or_create_open_batch(cls, user_id: int) -> Dict[str, Any]:
-        """Fetch current open batch for user, or create a new one."""
+    def get_or_create_open_batch(cls, user_id: int, title: Optional[str] = None, max_idle_hours: int = 12) -> Dict[str, Any]:
+        """Fetch current open batch for user or create a new one, auto-expiring stale batches."""
         with cls.get_connection() as conn:
             cursor = conn.cursor()
+
+            # Auto-expire stale open batches for this user older than max_idle_hours
+            cursor.execute(
+                f"""
+                UPDATE batches
+                SET status = 'expired', updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ? AND status = 'open'
+                AND updated_at < datetime('now', '-{max_idle_hours} hours')
+                """,
+                (user_id,)
+            )
+
             cursor.execute(
                 "SELECT * FROM batches WHERE user_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1",
                 (user_id,)
@@ -119,13 +131,22 @@ class Database:
 
             now = datetime.now(timezone.utc).isoformat()
             cursor.execute(
-                "INSERT INTO batches (user_id, status, created_at, updated_at) VALUES (?, 'open', ?, ?)",
-                (user_id, now, now)
+                "INSERT INTO batches (user_id, title, status, created_at, updated_at) VALUES (?, ?, 'open', ?, ?)",
+                (user_id, title, now, now)
             )
             conn.commit()
             batch_id = cursor.lastrowid
             cursor.execute("SELECT * FROM batches WHERE id = ?", (batch_id,))
             return dict(cursor.fetchone())
+
+    @classmethod
+    def get_batch(cls, batch_id: int) -> Optional[Dict[str, Any]]:
+        """Return batch record by ID."""
+        with cls.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM batches WHERE id = ?", (batch_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
 
     @classmethod
     def get_open_batch(cls, user_id: int) -> Optional[Dict[str, Any]]:
@@ -206,6 +227,20 @@ class Database:
                     (batch_id, file_unique_id)
                 )
                 if cursor.fetchone():
+                    logger.info(f"Duplicate item {file_unique_id} skipped for batch #{batch_id}")
+                    return 0
+
+            # Prevent rapid duplicate upload with identical caption within 120 seconds
+            if caption and caption.strip():
+                cursor.execute(
+                    """
+                    SELECT id FROM items
+                    WHERE batch_id = ? AND caption = ? AND created_at >= datetime('now', '-2 minutes')
+                    """,
+                    (batch_id, caption.strip())
+                )
+                if cursor.fetchone():
+                    logger.info(f"Rapid duplicate caption '{caption[:30]}' skipped for batch #{batch_id}")
                     return 0
 
             cursor.execute("""
@@ -213,8 +248,76 @@ class Database:
                     batch_id, user_id, item_type, file_id, file_unique_id, local_path, caption, media_group_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (batch_id, user_id, item_type, file_id, file_unique_id, local_path, caption, media_group_id))
+            now = datetime.now(timezone.utc).isoformat()
+            cursor.execute("UPDATE batches SET updated_at = ? WHERE id = ?", (now, batch_id))
             conn.commit()
             return cursor.lastrowid
+
+    @classmethod
+    def get_item(cls, item_id: int) -> Optional[Dict[str, Any]]:
+        """Return a single item by id."""
+        with cls.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM items WHERE id = ?", (item_id,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    @classmethod
+    def delete_batch_item(cls, item_id: int) -> Optional[Dict[str, Any]]:
+        """Delete an individual item from its batch and touch batch updated_at."""
+        with cls.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM items WHERE id = ?", (item_id,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            item = dict(row)
+            cursor.execute("DELETE FROM items WHERE id = ?", (item_id,))
+            now = datetime.now(timezone.utc).isoformat()
+            cursor.execute(
+                "UPDATE batches SET updated_at = ? WHERE id = ?",
+                (now, item["batch_id"])
+            )
+            conn.commit()
+            return item
+
+    @classmethod
+    def isolate_items_to_new_batch(
+        cls,
+        user_id: int,
+        item_ids: List[int],
+        title: Optional[str] = None
+    ) -> int:
+        """
+        Move selected item_ids from their current batch into a fresh dedicated batch.
+        Returns the new batch_id.
+        """
+        if not item_ids:
+            raise ValueError("item_ids cannot be empty")
+        with cls.get_connection() as conn:
+            cursor = conn.cursor()
+            now = datetime.now(timezone.utc).isoformat()
+            cursor.execute(
+                "INSERT INTO batches (user_id, title, status, created_at, updated_at) VALUES (?, ?, 'open', ?, ?)",
+                (user_id, title, now, now)
+            )
+            new_batch_id = cursor.lastrowid
+            placeholders = ",".join("?" for _ in item_ids)
+            cursor.execute(
+                f"UPDATE items SET batch_id = ? WHERE id IN ({placeholders})",
+                [new_batch_id] + list(item_ids)
+            )
+            conn.commit()
+            return new_batch_id
+
+    @classmethod
+    def count_batch_items(cls, batch_id: int) -> int:
+        """Return the count of items in a batch."""
+        with cls.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) as count FROM items WHERE batch_id = ?", (batch_id,))
+            row = cursor.fetchone()
+            return row["count"] if row else 0
 
     @classmethod
     def update_item_caption(cls, item_id: int, caption: str) -> bool:

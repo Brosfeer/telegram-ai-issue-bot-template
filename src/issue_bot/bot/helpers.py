@@ -12,27 +12,64 @@ from telegram import (
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, Application
 from issue_bot.config import settings
+import time
 from issue_bot.core.database import Database
 
 logger = logging.getLogger(__name__)
+
+SPINNER_FRAMES = ["⚡", "🔄", "⚙️", "✨"]
 
 async def run_with_stepped_progress(
     status_msg,
     coro,
     steps: list[str],
-    interval: float = 3.5
+    interval: float = 4.0
 ) -> Any:
-    """Run an async coroutine while cycling status message through stepped phases."""
+    """
+    Run an async coroutine while continuously cycling the status message with:
+    1. Progressive architectural phases (steps).
+    2. Dynamic live elapsed timer (⏱️ mm:ss).
+    3. Pulsing animated spinner frames (⚡, 🔄, ⚙️, ✨).
+    Runs indefinitely until the coroutine finishes, preventing UI freeze illusions.
+    """
+    start_time = time.monotonic()
+
     async def _ticker():
         idx = 0
+        tick_count = 0
         try:
-            while idx < len(steps):
+            while True:
                 await asyncio.sleep(interval)
+                tick_count += 1
+                elapsed = int(time.monotonic() - start_time)
+                mins, secs = divmod(elapsed, 60)
+                timer_str = f"{mins:02d}:{secs:02d}"
+                spinner = SPINNER_FRAMES[tick_count % len(SPINNER_FRAMES)]
+
+                if steps:
+                    if idx < len(steps):
+                        base_step = steps[idx]
+                        idx += 1
+                    else:
+                        base_step = steps[-1]
+                else:
+                    base_step = "🤖 *AI Issue Engine — Analyzing & Synthesizing...* ⏳"
+
+                footer_lines = [
+                    "",
+                    f"⏱️ *Elapsed Time*: `{timer_str}` {spinner}",
+                ]
+                if elapsed >= 20:
+                    footer_lines.append("_Processing actively continues, please hold..._")
+                if elapsed >= 45:
+                    footer_lines.append("💡 _Large batches undergo multi-component architectural clustering._")
+
+                full_text = f"{base_step}\n" + "\n".join(footer_lines)
+
                 try:
-                    await status_msg.edit_text(steps[idx], parse_mode=ParseMode.MARKDOWN)
-                except Exception:
-                    pass
-                idx += 1
+                    await status_msg.edit_text(full_text, parse_mode=ParseMode.MARKDOWN)
+                except Exception as ex:
+                    logger.debug(f"Progress edit notice: {ex}")
         except asyncio.CancelledError:
             pass
 

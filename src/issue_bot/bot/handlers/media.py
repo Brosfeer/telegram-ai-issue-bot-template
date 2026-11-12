@@ -71,6 +71,10 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         media_group_id=media_group_id
     )
 
+    if item_id == 0:
+        await msg.reply_text("ℹ️ *Duplicate screenshot or note skipped.*", parse_mode=ParseMode.MARKDOWN)
+        return
+
     if media_group_id:
         if media_group_id in _MEDIA_GROUP_TASKS:
             _MEDIA_GROUP_TASKS[media_group_id].cancel()
@@ -80,7 +84,7 @@ async def photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         _MEDIA_GROUP_TASKS[media_group_id] = task
     else:
         items = Database.get_batch_items(batch_id)
-        card_text, reply_markup = format_batch_card(batch, items, user.id)
+        card_text, reply_markup = format_batch_card(batch, items, user.id, new_item_id=item_id)
         await msg.reply_text(card_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
 async def document_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

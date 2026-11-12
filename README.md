@@ -53,13 +53,17 @@ graph TD
 
 ## ✨ Key Features
 
+- **🧠 Built-In `s-bros-bot` Skill**: Bundles a ready-to-use Antigravity/AI Agent skill (`.agents/skills/s-bros-bot/`) that auto-detects repository ground truth, configures credentials, audits pre-flight health, and manages user whitelists.
+- **🚀 Instant Isolated Screenshot Issues**: Dedicated `[ 🚀 Issue This Screenshot Isolated ]` action to immediately dispatch single QA findings without waiting or bundling.
+- **❌ Granular Item Drop Chips**: Direct `[ ❌ #1 ] [ ❌ #2 ]` chips on batch cards to remove individual unwanted items without wiping the entire batch buffer.
+- **⏱️ Continuous Live Progress Heartbeat**: Pulsing animated spinner (`⚡`, `🔄`, `⚙️`, `✨`) and live elapsed timer (`⏱️ mm:ss`) keeping testers informed during deep LLM codebase audits.
 - **📸 Media Album Debouncing**: Automatically groups multi-photo Telegram albums using `media_group_id` into a single consolidated staging card.
 - **🐙 Direct GitHub CLI Asset Hosting**: Leverages `gh issue create --attach` to host QA screenshots directly on GitHub's secure asset CDN without relying on brittle third-party image hosts.
 - **🌳 Native GitHub Sub-Issues Hierarchy**: Automatically splits multi-observation batches into native GitHub Sub-Issues (`--parent <N>`) with architectural diagnosis tables.
 - **🛡️ Domain Gatekeeper & Chatter Blocker**: Rejects greetings, emoji-only spam, and conversational chatter before they pollute your issue tracker.
 - **⌨️ Docked Persistent Keyboards**: Explicitly configured with `is_persistent=True` so custom keyboard buttons never auto-hide while typing on mobile or desktop.
 - **📋 Scoped Native Command Menus**: Registers tailored `setMyCommands` menus for QA testers vs. Admins via `post_init`.
-- **🔒 Multi-Tier Access Control & Concurrency Locks**: SQLite WAL access authorization with admin interactive approvals and multi-click race condition prevention.
+- **🔒 Multi-Tier Access Control & Concurrency Locks**: SQLite WAL access authorization with admin interactive approvals, 12-hour auto-session expiry, and multi-click race condition prevention.
 - **⚡ Lightweight Storage Forensics**: Pure Python image header parser (`inspect_image_file`) verifying PNG, JPEG, and WEBP dimensions without heavy PIL/Pillow dependencies.
 
 ---
@@ -68,6 +72,12 @@ graph TD
 
 ```text
 telegram-ai-issue-bot-template/
+├── .agents/
+│   └── skills/
+│       └── s-bros-bot/             # Autonomous agent configuration & setup skill
+│           ├── SKILL.md
+│           ├── scripts/            # detect_repo.py, setup_bot.py, verify_preflight.py, manage_users.py
+│           └── references/         # architecture.md, env_spec.md, troubleshooting.md
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                  # Multi-version Python CI pipeline

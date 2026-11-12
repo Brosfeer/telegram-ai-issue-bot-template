@@ -54,6 +54,31 @@ def test_database_batch_workflow():
     Database.close_batch(batch["id"])
     assert Database.get_open_batch(user_id) is None
 
+def test_database_item_isolation_and_deletion():
+    user_id = 554433
+    batch = Database.get_or_create_open_batch(user_id)
+    b_id = batch["id"]
+
+    id1 = Database.add_item_to_batch(b_id, user_id, "text", caption="Item 1")
+    id2 = Database.add_item_to_batch(b_id, user_id, "text", caption="Item 2")
+    assert Database.count_batch_items(b_id) == 2
+
+    # Duplicate caption within 120s is skipped
+    id_dup = Database.add_item_to_batch(b_id, user_id, "text", caption="Item 1")
+    assert id_dup == 0
+
+    # Isolate item 2 to new batch
+    new_b_id = Database.isolate_items_to_new_batch(user_id, [id2], title="Isolated")
+    assert new_b_id != b_id
+    assert Database.count_batch_items(b_id) == 1
+    assert Database.count_batch_items(new_b_id) == 1
+
+    # Delete item 1
+    deleted = Database.delete_batch_item(id1)
+    assert deleted is not None
+    assert deleted["id"] == id1
+    assert Database.count_batch_items(b_id) == 0
+
 def test_access_control():
     user_id = 998877
     assert Database.is_user_authorized(user_id) is False
